@@ -1,0 +1,31 @@
+{
+    "name": "moondream2",
+    "url": "https://github.com/harpreetsahota204/moondream2",
+    "models": [
+        {
+            "base_name": "vikhyatk/moondream2",
+            "base_filename":"moondream2",
+            "author": "Moondream AI",
+            "license": "Apache-2.0",
+            "source": "https://huggingface.co/vikhyatk/moondream2",
+            "description": "Moondream is a small vision language model designed to run efficiently on edge devices.",
+            "tags": [
+                "detection",
+                "segmentation",
+                "ocr",
+                "VLM",
+                "zero-shot"
+            ],
+            "date_added": "2025-03-28",
+            "requirements": {
+                "packages": ["huggingface-hub","transformers", "torch", "torchvision", "einops"],
+                "cpu": {
+                    "support": true
+                },
+                "gpu": {
+                    "support": true
+                }
+            }
+        }
+   ]
+}
