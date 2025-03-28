@@ -10,7 +10,7 @@ from huggingface_hub import snapshot_download
 from fiftyone.operators import types
 
 # Import constants from zoo.py to ensure consistency
-from .zoo import MOONDREAM_OPERATIONS, moondream2
+from .zoo import MOONDREAM_OPERATIONS, Moondream2
 
 MOONDREAM_MODES = {
     "caption": "Caption images", 
@@ -59,7 +59,7 @@ def load_model(model_name, model_path, **kwargs):
     logger.info(f"Loading moondream2 model from {model_path}")
 
     # Create and return the model - operations specified at apply time
-    return moondream2(model_path=model_path, **kwargs)
+    return Moondream2(model_path=model_path, **kwargs)
 
 
 def resolve_input(self, ctx):
