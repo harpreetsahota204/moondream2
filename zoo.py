@@ -275,7 +275,7 @@ class Moondream2(Model, SamplesMixin):
             
         result = self.model.query(image, query_text)["answer"]
 
-        return result
+        return result.strip()
 
     def _predict_detect(self, image: Image.Image, sample=None) -> Dict[str, Detections]:
         """Detect objects in an image.
