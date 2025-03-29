@@ -7,6 +7,9 @@ import logging
 import os
 
 from huggingface_hub import snapshot_download
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+
 from fiftyone.operators import types
 
 # Import constants from zoo.py to ensure consistency
@@ -22,7 +25,7 @@ MOONDREAM_MODES = {
 
 logger = logging.getLogger(__name__)
 
-def download_model(model_name, model_path):
+def download_model(model_name, model_path, **kwargs):
     """Downloads the model.
 
     Args:
@@ -32,7 +35,8 @@ def download_model(model_name, model_path):
             model, as declared by the ``base_filename`` field of the manifest
     """
     
-    snapshot_download(repo_id=model_name, local_dir=model_path, revision='2025-03-27')
+    snapshot_download(repo_id=model_name, local_dir=model_path,  ignore_patterns=["*.gguf"])
+
 
 def load_model(model_name, model_path, **kwargs):
     """Loads the model.
@@ -56,7 +60,7 @@ def load_model(model_name, model_path, **kwargs):
             "using fiftyone.zoo.download_zoo_model('voxel51/moondream')"
         )
     
-    logger.info(f"Loading moondream2 model from {model_path}")
+    print(f"Loading moondream2 model from {model_path}")
 
     # Create and return the model - operations specified at apply time
     return Moondream2(model_path=model_path, **kwargs)

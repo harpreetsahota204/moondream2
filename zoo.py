@@ -11,7 +11,7 @@ from PIL import Image
 
 from fiftyone import Model, SamplesMixin
 from fiftyone.core.labels import Detection, Detections, Keypoint, Keypoints
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MOONDREAM_OPERATIONS = {
     "caption": {
@@ -71,28 +71,42 @@ class Moondream2(Model, SamplesMixin):
         if "operation" in kwargs:
             operation = kwargs.pop("operation")
             self.set_operation(operation, **kwargs)
+
+        
         
         # Set device
         self.device = get_device()
         logger.info(f"Using device: {self.device}")
 
-        self.torch_dtype = torch.float16 if torch.cuda.is_available() else None
-
         logger.info(f"Loading model from local path: {model_path}")
-        # Initialize model
-        if self.torch_dtype:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, 
-                trust_remote_code=True,
-                device_map=self.device,
-                torch_dtype=self.torch_dtype
-            )
-        else:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, 
-                trust_remote_code=True,
-                device_map=self.device
-            )
+
+        print("\n" + "="*80)
+        print("NOTICE: Creating necessary symbolic links for custom model code")
+        print("When loading Moondream2 from a local directory,")
+        print("the Transformers library expects to find Python modules in:")
+        print(f"  ~/.cache/huggingface/modules/transformers_modules/moondream2/")
+        print("rather than in your downloaded model directory.")
+        print("Creating symbolic links to connect these locations...")
+        print("="*80 + "\n")
+        cache_dir = os.path.expanduser("~/.cache/huggingface/modules/transformers_modules/moondream2")
+        os.makedirs(cache_dir, exist_ok=True)
+        # Find all Python files in the model directory and create symlinks
+        for file in os.listdir(model_path):
+            if file.endswith('.py'):
+                src = os.path.join(model_path, file)
+                dst = os.path.join(cache_dir, file)
+                # Create a symlink instead of copying
+                if not os.path.exists(dst):
+                    print(f"Creating symlink for {file}")
+                    os.symlink(src, dst)
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_path, 
+            revision=kwargs.get("revision"),
+            trust_remote_code=True,
+            local_files_only=True,
+            device_map=self.device
+        )
 
     @property
     def media_type(self):
