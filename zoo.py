@@ -250,7 +250,7 @@ class Moondream2(Model, SamplesMixin):
         """
         result = self.model.caption(image, length=self.params["length"])["caption"]
 
-        return result
+        return result.strip()
 
     def _predict_query(self, image: Image.Image, sample=None) -> Dict[str, str]:
         """Answer a visual query about an image.
