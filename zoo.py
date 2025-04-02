@@ -16,19 +16,15 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 MOONDREAM_OPERATIONS = {
     "caption": {
         "params": {"length": ["short", "normal", "long"]},
-        "required": ["length"],
     },
     "query": {
-        "params": {"query_text": str, "query_field": str},
-         "required_one_of": ["query_text", "query_field"]
+        "params": {},
     },
     "detect": {
-        "params": {"object_type": str},
-        "required": ["object_type"],
+        "params": {},
     },
     "point": {
-        "params": {"object_type": str},
-        "required": ["object_type"],
+        "params": {},
     }
 }
 
@@ -43,37 +39,40 @@ def get_device():
         return "mps"
     return "cpu"
 
-class Moondream2(Model, SamplesMixin):
+class Moondream2(SamplesMixin, Model):
     """A FiftyOne model for running the Moondream2 model on images.
     
     Args:
-        operation (str): Type of operation to perform
-        revision (str, optional): Model revision/tag to use
-        **kwargs: Operation-specific parameters
+        model_path (str): Path to model or HuggingFace model name
+        operation (str, optional): Type of operation to perform
+        prompt (str, optional): Prompt text to use
+        **kwargs: Additional parameters
     """
 
     def __init__(
         self, 
         model_path: str,
+        operation: str = None,
+        prompt: str = None,
         **kwargs
     ):
         if not model_path:
             raise ValueError("model_path is required")
             
         self.model_path = model_path
-        
-        # Operation and parameters will be set at apply time by default
-        self.operation = None
+        self._operation = None
+        self._prompt = prompt
         self.params = {}
-        self.needs_fields = {}
+        self._fields = {}
         
-        # If operation is provided in kwargs, set it now
-        if "operation" in kwargs:
-            operation = kwargs.pop("operation")
-            self.set_operation(operation, **kwargs)
-
-        
-        
+        # Set operation if provided
+        if operation:
+            self.operation = operation
+            
+        # Store any additional parameters
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+               
         # Set device
         self.device = get_device()
         logger.info(f"Using device: {self.device}")
@@ -111,81 +110,49 @@ class Moondream2(Model, SamplesMixin):
     @property
     def media_type(self):
         return "image"
-
-    def set_operation(self, operation: str, **kwargs):
-        """Set the current operation and parameters.
-        
-        Args:
-            operation (str): Operation type ('caption', 'query', 'detect', or 'point')
-            **kwargs: Operation-specific parameters:
-                - caption: requires 'length' ('short', 'normal', or 'long')
-                - query: requires either 'query_text' (str) or 'query_field' (str)
-                - detect: requires 'object_type' (str)
-                - point: requires 'object_type' (str)
-                
-        Returns:
-            self: For method chaining
-            
-        Raises:
-            ValueError: If operation is invalid or required parameters are missing/invalid
-        """
-        if operation not in MOONDREAM_OPERATIONS:
-            raise ValueError(
-                f"Invalid operation: {operation}. Must be one of {list(MOONDREAM_OPERATIONS.keys())}"
-            )
-
-        # Get operation specifications
-        op_spec = MOONDREAM_OPERATIONS[operation]
-        param_types = op_spec["params"]
-
-        # Reset needs_fields
-        self.needs_fields = {}
-
-        # Handle required parameters based on operation
-        if operation == "query":
-            # Check if at least one of required_one_of parameters is provided
-            required_one_of = op_spec["required_one_of"]
-            if not any(param in kwargs for param in required_one_of):
-                raise ValueError(
-                    f"Operation '{operation}' requires at least one of: {required_one_of}"
-                )
-                
-            # If query_field is provided, set up needs_fields
-            if "query_field" in kwargs:
-                field_name = kwargs["query_field"]
-                self.needs_fields = {field_name: field_name}
-                
+    
+    def _get_field(self):
+        """Get the field name to use for prompt extraction."""
+        if "prompt_field" in self.needs_fields:
+            prompt_field = self.needs_fields["prompt_field"]
         else:
-            # For other operations, check required parameters
-            required_params = op_spec["required"]
-            missing_params = [p for p in required_params if p not in kwargs]
-            if missing_params:
-                raise ValueError(
-                    f"Operation '{operation}' requires parameters: {missing_params}"
-                )
+            prompt_field = next(iter(self.needs_fields.values()), None)
+        return prompt_field
 
-        # Validate parameter types
-        for param, value in kwargs.items():
-            if param in param_types:
-                expected_type = param_types[param]
-                
-                # Handle special case for caption length
-                if param == "length" and operation == "caption":
-                    if value not in expected_type:
-                        raise ValueError(
-                            f"Invalid value for 'length': {value}. Must be one of {expected_type}"
-                        )
-                # Handle other parameters
-                elif not isinstance(value, expected_type):
-                    raise ValueError(
-                        f"Parameter '{param}' must be of type {expected_type.__name__}"
-                    )
+    @property
+    def operation(self):
+        """Get the current operation."""
+        return self._operation
 
-        # Store operation and validated parameters
-        self.operation = operation
-        self.params = kwargs
+    @operation.setter
+    def operation(self, value):
+        """Set the operation with validation."""
+        if value not in MOONDREAM_OPERATIONS:
+            raise ValueError(f"Invalid operation: {value}. Must be one of {list(MOONDREAM_OPERATIONS.keys())}")
+        self._operation = value
 
-        return self
+    @property
+    def prompt(self):
+        """Get the current prompt text."""
+        return self._prompt
+
+    @prompt.setter
+    def prompt(self, value):
+        """Set the prompt text."""
+        self._prompt = value
+        
+    @property
+    def length(self):
+        """Get the caption length."""
+        return self.params.get("length", "normal")
+
+    @length.setter
+    def length(self, value):
+        """Set the caption length with validation."""
+        valid_lengths = MOONDREAM_OPERATIONS["caption"]["params"]["length"]
+        if value not in valid_lengths:
+            raise ValueError(f"Invalid length: {value}. Must be one of {valid_lengths}")
+        self.params["length"] = value
 
 
     def _convert_to_detections(self, boxes: List[Dict[str, float]], label: str) -> Detections:
@@ -248,7 +215,8 @@ class Moondream2(Model, SamplesMixin):
         Returns:
             dict: Caption result
         """
-        result = self.model.caption(image, length=self.params["length"])["caption"]
+        length = self.params.get("length", "normal")
+        result = self.model.caption(image, length=length)["caption"]
 
         return result.strip()
 
@@ -262,18 +230,10 @@ class Moondream2(Model, SamplesMixin):
         Returns:
             dict: Query answer
         """
-        # Get query text either directly or from sample field
-        query_text = None
-        
-        if "query_field" in self.params and sample is not None:
-            field_name = self.params["query_field"]
-            query_text = sample[field_name]
-        elif "query_text" in self.params:
-            query_text = self.params["query_text"]
-        else:
-            raise ValueError("Either query_text parameter or query_field with sample must be provided")
+        if not self.prompt:
+            raise ValueError("No prompt provided for query operation")
             
-        result = self.model.query(image, query_text)["answer"]
+        result = self.model.query(image, self.prompt)["answer"]
 
         return result.strip()
 
@@ -287,9 +247,12 @@ class Moondream2(Model, SamplesMixin):
         Returns:
             dict: Detection results
         """
-        result = self.model.detect(image, self.params["object_type"])["objects"]
+        if not self.prompt:
+            raise ValueError("No prompt provided for detect operation")
 
-        detections = self._convert_to_detections(result, self.params["object_type"])
+        result = self.model.detect(image, self.prompt)["objects"]
+
+        detections = self._convert_to_detections(result, self.prompt)
 
         return detections
 
@@ -303,9 +266,12 @@ class Moondream2(Model, SamplesMixin):
         Returns:
             dict: Keypoint results
         """
-        result = self.model.point(image, self.params["object_type"])["points"]
+        if not self.prompt:
+            raise ValueError("No prompt provided for point operation")
 
-        keypoints = self._convert_to_keypoints(result, self.params["object_type"])
+        result = self.model.point(image, self.prompt)["points"]
+
+        keypoints = self._convert_to_keypoints(result, self.prompt)
 
         return keypoints
 
@@ -319,6 +285,15 @@ class Moondream2(Model, SamplesMixin):
         Returns:
             dict: Operation results
         """
+        # Centralized field handling
+        if sample is not None and self._get_field() is not None:
+            field_value = sample.get_field(self._get_field())
+            if field_value is not None:
+                self._prompt = str(field_value)
+                
+        if not self.operation:
+            raise ValueError("No operation has been set")
+                
         prediction_methods = {
             "caption": self._predict_caption,
             "query": self._predict_query,
@@ -343,5 +318,6 @@ class Moondream2(Model, SamplesMixin):
         Returns:
             dict: Operation results
         """
+        logger.info(f"Running {self.operation} operation")
         pil_image = Image.fromarray(image)
         return self._predict(pil_image, sample)
