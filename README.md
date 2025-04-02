@@ -82,7 +82,7 @@ model = foz.load_zoo_model(
 |-----------|-------------|---------------------|
 | `caption` | Generate image captions | `length`: "short", "normal", or "long" |
 | `detect` | Detect objects in images | `prompt`: object type to detect |
-| `point` | Identify keypoints | `object_type`: type of object to locate points for |
+| `point` | Identify keypoints | `prompt`: type of object to locate points for |
 | `query` | Visual question answering | `prompt`: question about the image |
 
 ### Image Captioning
@@ -142,7 +142,7 @@ Identify keypoints for specific object types:
 
 ```python
 model.operation = "point"
-model.object_type = "people"
+model.prompt = "people"
 
 dataset.apply_model(model, label_field="pointings")
 
