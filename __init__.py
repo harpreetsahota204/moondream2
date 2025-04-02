@@ -1,8 +1,3 @@
-from huggingface_hub import snapshot_download
-
-"""
-Moondream2 model from https://huggingface.co/vikhyatk/moondream2
-"""
 import logging
 import os
 
