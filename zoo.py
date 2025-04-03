@@ -362,19 +362,26 @@ class Moondream2(SamplesMixin, Model):
         if not self.prompt:
             raise ValueError("No prompt provided for classify operation")
         
-        # Construct the classification prompt by combining instructions with user query
-        classification_prompt = f"You are classifying an image based on the user query. Query: {self.prompt}. Classification must be one of the provided classes in the user query."
+        # Handle different types of prompt inputs (list or string)
+        if isinstance(self.prompt, list):
+            # If prompt is a list of classes, format it as a special classification prompt
+            classes_list = ", ".join(self.prompt)  # Join classes with commas for display
+            classification_prompt = f"A photo of a: {classes_list}. Respond with only of the provided choices name, and nothing more."
+            logger.info(f"Using list of classes for classification: {self.prompt}")
+        else:
+            # If prompt is a string, use it directly
+            classification_prompt = f"A photo of a: {self.prompt}. Respond with only of the provided choices name, and nothing more."
+            logger.info(f"Using string prompt for classification: {self.prompt}")
         
         # Query the model with the image and prompt, extract and clean the response
-        result = self.model.query(image, self.prompt)["answer"].strip()
-
-        # Log the classification result
-        logger.info(f"Classified as: {result}")
+        logger.info(f"Sending classification prompt to model")
+        result = self.model.query(image, classification_prompt)["answer"].strip()
+        logger.info(f"Model classified image as: {result}")
         
-        # Convert the classification result to FiftyOne's Classifications format
+        # Convert the string result to FiftyOne Classifications format
         classifications = self._to_classifications(result)
+        
         return classifications
-    
 
     def _predict(self, image: Image.Image, sample=None) -> Any:
         """Process a single image with Moondream2.
