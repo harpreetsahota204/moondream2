@@ -9,8 +9,9 @@ import numpy as np
 import torch
 from PIL import Image
 
+
 from fiftyone import Model, SamplesMixin
-from fiftyone.core.labels import Detection, Detections, Keypoint, Keypoints
+from fiftyone.core.labels import Detection, Detections, Keypoint, Keypoints, Classification, Classifications
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MOONDREAM_OPERATIONS = {
@@ -24,6 +25,9 @@ MOONDREAM_OPERATIONS = {
         "params": {},
     },
     "point": {
+        "params": {},
+    },
+    "classify": {
         "params": {},
     }
 }
@@ -237,45 +241,142 @@ class Moondream2(SamplesMixin, Model):
 
         return result.strip()
 
-    def _predict_detect(self, image: Image.Image, sample=None) -> Dict[str, Detections]:
-        """Detect objects in an image.
+    def _predict_detect(self, image: Image.Image, sample=None) -> Detections:
+        """Detect objects in an image with multiple class support.
         
         Args:
             image: PIL image
             sample: Optional FiftyOne sample
             
         Returns:
-            dict: Detection results
+            FiftyOne Detections object containing all detected objects
         """
         if not self.prompt:
             raise ValueError("No prompt provided for detect operation")
+        
+        # Handle different types of prompt inputs (list or string)
+        if isinstance(self.prompt, list):
+            # If prompt is already a list, use it directly
+            classes_to_find = self.prompt
+            logger.info(f"Using list of classes: {classes_to_find}")
+        else:
+            # If prompt is a string, split it by commas and clean up whitespace
+            classes_to_find = [cls.strip() for cls in self.prompt.split(',')]
+            logger.info(f"Parsed classes from string: {classes_to_find}")
+        
+        # Initialize an empty list to store all detections across all classes
+        all_detections = []
+        
+        # Process each class separately since Moondream2 only supports one class at a time
+        for cls in classes_to_find:
+            logger.info(f"Detecting class: {cls}")
+            
+            # Call the Moondream2 model to detect objects of this specific class
+            result = self.model.detect(image, cls)["objects"]
+            logger.info(f"Found {len(result)} instances of '{cls}'")
+            
+            # Convert the detected objects to FiftyOne Detection format using our helper method
+            # This returns a Detections object for the current class
+            class_detections = self._convert_to_detections(result, cls)
+            
+            # Add all detections from this class to our combined list
+            all_detections.extend(class_detections.detections)
+        
+        # Return all detections combined in a single FiftyOne Detections object
+        logger.info(f"Total objects detected across all classes: {len(all_detections)}")
+        return Detections(detections=all_detections)
 
-        result = self.model.detect(image, self.prompt)["objects"]
-
-        detections = self._convert_to_detections(result, self.prompt)
-
-        return detections
-
-    def _predict_point(self, image: Image.Image, sample=None) -> Dict[str, Keypoints]:
-        """Identify point locations of objects in an image.
+    def _predict_point(self, image: Image.Image, sample=None) -> Keypoints:
+        """Identify point locations of objects in an image with multiple class support.
         
         Args:
             image: PIL image
             sample: Optional FiftyOne sample
             
         Returns:
-            dict: Keypoint results
+            FiftyOne Keypoints object containing all detected keypoints
         """
         if not self.prompt:
             raise ValueError("No prompt provided for point operation")
+        
+        # Handle different types of prompt inputs (list or string)
+        if isinstance(self.prompt, list):
+            # If prompt is already a list, use it directly
+            classes_to_find = self.prompt
+            logger.info(f"Using list of classes: {classes_to_find}")
+        else:
+            # If prompt is a string, split it by commas and clean up whitespace
+            classes_to_find = [cls.strip() for cls in self.prompt.split(',')]
+            logger.info(f"Parsed classes from string: {classes_to_find}")
+        
+        # Initialize an empty list to store all keypoints across all classes
+        all_keypoints = []
+        
+        # Process each class separately since Moondream2 only supports one class at a time
+        for cls in classes_to_find:
+            logger.info(f"Finding points for class: {cls}")
+            
+            # Call the Moondream2 model to find points for this specific class
+            result = self.model.point(image, cls)["points"]
+            logger.info(f"Found {len(result)} points for '{cls}'")
+            
+            # Convert the detected points to FiftyOne Keypoint format using our helper method
+            # This returns a Keypoints object for the current class
+            class_keypoints = self._convert_to_keypoints(result, cls)
+            
+            # Add all keypoints from this class to our combined list
+            all_keypoints.extend(class_keypoints.keypoints)
+        
+        # Return all keypoints combined in a single FiftyOne Keypoints object
+        logger.info(f"Total points detected across all classes: {len(all_keypoints)}")
+        return Keypoints(keypoints=all_keypoints)
+        
+    def _to_classifications(self, classes: str) -> Classifications:
+        """Convert a list of classification dictionaries to FiftyOne Classifications.
+        
+        Args:
+            classes: List of dictionaries containing classification information.
+                Each dictionary should have:
+                - 'label': String class label
+                
+        Returns:
+            fo.Classifications object containing the converted classification annotations
+        """
+        classification = Classification(
+                    label=classes,
+                )
+        return Classifications(classifications=[classification])
+    
 
-        result = self.model.point(image, self.prompt)["points"]
+    def _predict_classify(self, image: Image.Image, sample=None) -> Classifications:
+        """Classify an image based on the prompt.
+        
+        Args:
+            image: PIL image
+            sample: Optional FiftyOne sample
+            
+        Returns:
+            fo.Classifications: Classification results
+        """
+        # Check if a classification prompt was provided
+        if not self.prompt:
+            raise ValueError("No prompt provided for classify operation")
+        
+        # Construct the classification prompt by combining instructions with user query
+        classification_prompt = f"You are classifying an image based on the user query. Query: {self.prompt}. Classification must be one of the provided classes in the user query."
+        
+        # Query the model with the image and prompt, extract and clean the response
+        result = self.model.query(image, self.prompt)["answer"].strip()
 
-        keypoints = self._convert_to_keypoints(result, self.prompt)
+        # Log the classification result
+        logger.info(f"Classified as: {result}")
+        
+        # Convert the classification result to FiftyOne's Classifications format
+        classifications = self._to_classifications(result)
+        return classifications
+    
 
-        return keypoints
-
-    def _predict(self, image: Image.Image, sample=None) -> Dict[str, Any]:
+    def _predict(self, image: Image.Image, sample=None) -> Any:
         """Process a single image with Moondream2.
         
         Args:
@@ -283,7 +384,7 @@ class Moondream2(SamplesMixin, Model):
             sample: Optional FiftyOne sample
             
         Returns:
-            dict: Operation results
+            Operation results (various types depending on operation)
         """
         # Centralized field handling
         if sample is not None and self._get_field() is not None:
@@ -298,7 +399,8 @@ class Moondream2(SamplesMixin, Model):
             "caption": self._predict_caption,
             "query": self._predict_query,
             "detect": self._predict_detect,
-            "point": self._predict_point
+            "point": self._predict_point,
+            "classify": self._predict_classify
         }
         
         predict_method = prediction_methods.get(self.operation)
