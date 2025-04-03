@@ -77,19 +77,15 @@ foz.download_zoo_model(
 ```python
 model = foz.load_zoo_model(
     "vikhyatk/moondream2",
-    revision="2025-03-27"
+    revision="2025-03-27",
+    # install_requirements=True #if you are using for the first time and need to download reuirement,
+    # ensure_requirements=True #  ensure any requirements are installed before loading the model
 )
 ```
 
 ## Usage Examples
 
-| Operation | Description | Required Parameters |
-|-----------|-------------|---------------------|
-| `caption` | Generate image captions | `length`: "short", "normal", or "long" |
-| `classify` | Zero shot classification | `prompt`: the classes you want the model to choose from |
-| `detect` | Detect objects in images | `prompt`: object type to detect |
-| `point` | Identify keypoints | `prompt`: type of object to locate points for, can be a Python list or a string list |
-| `query` | Visual question answering | `prompt`: question about the image |
+The same model instance can be used for different operations by simply changing its properties:
 
 ### Image Captioning
 
@@ -106,11 +102,9 @@ dataset.apply_model(
     label_field="short_captions",
 )
 
-# Access the results
-print(dataset.first()['short_captions'])
 ```
 
-#### Long Captions
+##### Change to Long Captions
 
 ```python
 model.length = "long"
@@ -120,13 +114,7 @@ dataset.apply_model(
     label_field="long_captions",
 )
 
-# Access the results
-print(dataset.first()['long_captions'])
 ```
-
-### Switching Between Operations
-
-The same model instance can be used for different operations by simply changing its properties:
 
 ### Zero-shot Classification
 
@@ -151,9 +139,6 @@ model.operation = "detect"
 model.prompt = "surfer, wave, bird" # you can also pass a Python list: ["surfer", "wave", "bird"]
 
 dataset.apply_model(model, label_field="detections")
-
-# Access the results - returns Detections objects with bounding boxes
-print(dataset.first()['detections'])
 ```
 
 ### Keypoint Detection
@@ -165,9 +150,6 @@ model.operation = "point"
 model.prompt = "surfer, wave, bird" # you can also pass a Python list: ["surfer", "wave", "bird"]
 
 dataset.apply_model(model, label_field="pointings")
-
-# Access the results
-print(dataset.first()['pointings'])
 ```
 
 ### Visual Question Answering (VQA)
@@ -179,9 +161,6 @@ model.operation = "query"
 model.prompt = "What is in the background of the image"
 
 dataset.apply_model(model, label_field="vqa_response")
-
-# Access the results
-print(dataset.first()['vqa_response'])
 ```
 
 ### Using Sample Fields for Prompts
@@ -198,21 +177,25 @@ dataset.apply_model(
     label_field="query_field_response",
     prompt_field="questions"
 )
-
-# Access the results
-print(dataset.first()['query_field_response'])
 ```
 
 ## Output Formats
 
 Moondream2 returns different types of output depending on the operation:
 
-* Captions: Returns string
-* Classify: Returns `fiftyone.core.labels.Classifications`
-* Detection: Returns `fiftyone.core.labels.Detections`
-* Phrase Grounding: Returns `fiftyone.core.labels.Detections`
-* Segmentation: Returns `fiftyone.core.labels.Polylines`
+* `caption`: Returns a string containing the image description
 
+* `query`: Returns a string containing the answer to the question
+
+* `classify`: Returns `fiftyone.core.labels.Classifications` object containing a single classification label
+
+* `detect`: Returns `fiftyone.core.labels.Detections` object containing:
+    - Normalized bounding boxin the  range [0,1]
+    - Label field containing the detected object class
+
+* `point`: Returns `fiftyone.core.labels.Keypoints` object containing:
+    - Normalized point coordinates `[x, y]` in range [0,1] x [0,1]
+    - Label field containing the point class
 
 # Citation
 
