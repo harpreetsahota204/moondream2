@@ -122,12 +122,9 @@ Classify images in a zero-shot manner
 
 ```python
 model.operation="classify"
-model.prompt= "Pick one of the animals the image: horse, giraffe, elephant, shark"
+model.prompt= "surfer, wave, bird" # you can also pass a Python list: ["surfer", "wave", "bird"]
 
-dataset.apply_model(
-    model, 
-    label_field="classification",
-)
+dataset.apply_model(model, label_field="classification")
 ```
 
 ### Object Detection
