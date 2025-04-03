@@ -81,8 +81,9 @@ model = foz.load_zoo_model(
 | Operation | Description | Required Parameters |
 |-----------|-------------|---------------------|
 | `caption` | Generate image captions | `length`: "short", "normal", or "long" |
+| `classify` | Zero shot classification | `prompt`: the classes you want the model to choose from |
 | `detect` | Detect objects in images | `prompt`: object type to detect |
-| `point` | Identify keypoints | `prompt`: type of object to locate points for |
+| `point` | Identify keypoints | `prompt`: type of object to locate points for, can be a Python list or a string list |
 | `query` | Visual question answering | `prompt`: question about the image |
 
 ### Image Captioning
@@ -122,13 +123,27 @@ print(dataset.first()['long_captions'])
 
 The same model instance can be used for different operations by simply changing its properties:
 
+### Zero-shot Classification
+
+Classify images in a zero-shot manner
+
+```python
+model.operation="classify"
+model.prompt= "Pick one of the animals the image: horse, giraffe, elephant, shark"
+
+dataset.apply_model(
+    model, 
+    label_field="classification",
+)
+```
+
 ### Object Detection
 
 Detect specific objects in images by providing a prompt:
 
 ```python
-model.operation = "detect"
-model.prompt = "surfer"
+model.operation = "detect" 
+model.prompt = "surfer, wave, bird" # you can also pass a Python list: ["surfer", "wave", "bird"]
 
 dataset.apply_model(model, label_field="detections")
 
@@ -142,7 +157,7 @@ Identify keypoints for specific object types:
 
 ```python
 model.operation = "point"
-model.prompt = "people"
+model.prompt = "surfer, wave, bird" # you can also pass a Python list: ["surfer", "wave", "bird"]
 
 dataset.apply_model(model, label_field="pointings")
 
@@ -152,7 +167,7 @@ print(dataset.first()['pointings'])
 
 ### Visual Question Answering (VQA)
 
-Ask questions about the content of images:
+Ask questions about the content of images. This can be used in a variety of ways, for example you can ask it to perfom OCR.
 
 ```python
 model.operation = "query"
@@ -188,7 +203,7 @@ print(dataset.first()['query_field_response'])
 Moondream2 returns different types of output depending on the operation:
 
 * Captions: Returns string
-* OCR: Returns either string or `fiftyone.core.labels.Detections`
+* Classify: Returns `fiftyone.core.labels.Classifications`
 * Detection: Returns `fiftyone.core.labels.Detections`
 * Phrase Grounding: Returns `fiftyone.core.labels.Detections`
 * Segmentation: Returns `fiftyone.core.labels.Polylines`
