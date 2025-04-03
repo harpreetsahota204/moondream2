@@ -14,7 +14,7 @@ pip install transformers<=4.49.0
 
 ## Features
 
-The model supports four main operations:
+The model supports five main operations:
 
 1. **Caption Generation** (`caption`)
    - Generates image descriptions with adjustable length (short, normal, long)
@@ -31,6 +31,11 @@ The model supports four main operations:
 4. **Point Identification** (`point`)
    - Identifies specific points of interest in images
    - Requires a prompt specifying what points to identify
+
+5. **Classification** (`classify`)
+   - Performs zero-shot classification on images
+   - Requires a prompt specifying the possible classes to choose from
+
 
 ## Technical Details
 
