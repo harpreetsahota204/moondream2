@@ -111,6 +111,8 @@ class Moondream2(SamplesMixin, Model):
             device_map=self.device
         )
 
+        self.model.eval()
+
     @property
     def media_type(self):
         return "image"
@@ -220,7 +222,8 @@ class Moondream2(SamplesMixin, Model):
             dict: Caption result
         """
         length = self.params.get("length", "normal")
-        result = self.model.caption(image, length=length)["caption"]
+        with torch.no_grad():
+            result = self.model.caption(image, length=length)["caption"]
 
         return result.strip()
 
@@ -236,8 +239,9 @@ class Moondream2(SamplesMixin, Model):
         """
         if not self.prompt:
             raise ValueError("No prompt provided for query operation")
-            
-        result = self.model.query(image, self.prompt)["answer"]
+
+        with torch.no_grad():    
+            result = self.model.query(image, self.prompt)["answer"]
 
         return result.strip()
 
@@ -272,7 +276,8 @@ class Moondream2(SamplesMixin, Model):
             logger.info(f"Detecting class: {cls}")
             
             # Call the Moondream2 model to detect objects of this specific class
-            result = self.model.detect(image, cls)["objects"]
+            with torch.no_grad():
+                result = self.model.detect(image, cls)["objects"]
             logger.info(f"Found {len(result)} instances of '{cls}'")
             
             # Convert the detected objects to FiftyOne Detection format using our helper method
@@ -317,7 +322,8 @@ class Moondream2(SamplesMixin, Model):
             logger.info(f"Finding points for class: {cls}")
             
             # Call the Moondream2 model to find points for this specific class
-            result = self.model.point(image, cls)["points"]
+            with torch.no_grad():
+                result = self.model.point(image, cls)["points"]
             logger.info(f"Found {len(result)} points for '{cls}'")
             
             # Convert the detected points to FiftyOne Keypoint format using our helper method
@@ -375,7 +381,8 @@ class Moondream2(SamplesMixin, Model):
         
         # Query the model with the image and prompt, extract and clean the response
         logger.info(f"Sending classification prompt to model")
-        result = self.model.query(image, classification_prompt)["answer"].strip()
+        with torch.no_grad():
+            result = self.model.query(image, classification_prompt)["answer"].strip()
         logger.info(f"Model classified image as: {result}")
         
         # Convert the string result to FiftyOne Classifications format
