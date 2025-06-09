@@ -117,6 +117,15 @@ class Moondream2(SamplesMixin, Model):
     def media_type(self):
         return "image"
     
+    @property
+    def needs_fields(self):
+        """A dict mapping model-specific keys to sample field names."""
+        return self._fields
+
+    @needs_fields.setter
+    def needs_fields(self, fields):
+        self._fields = fields
+
     def _get_field(self):
         """Get the field name to use for prompt extraction."""
         if "prompt_field" in self.needs_fields:
