@@ -111,6 +111,7 @@ class Moondream2(SamplesMixin, Model):
 
         model_kwargs = {
             "device_map": self.device,
+            "torch_dtype": torch.float32,  # Default to full precision
         }
 
         # Set optimizations based on CUDA device capabilities
@@ -123,14 +124,14 @@ class Moondream2(SamplesMixin, Model):
             
             # Enable bfloat16 on Ampere+ GPUs (compute capability 8.0+) 
             # or apply it anyway if quantized is not enabled
-            if capability[0] >= 8 or self.quantized is not True:
+            if capability[0] >= 8:
                 model_kwargs["torch_dtype"] = torch.bfloat16
             
             # Apply quantization only on CUDA devices if requested
             if self.quantized:
                 model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
-            elif self.quantized:
-                logger.warning("Quantization is only supported on CUDA devices. Ignoring quantization request.")
+        elif self.quantized:
+            logger.warning("Quantization is only supported on CUDA devices. Ignoring quantization request.")
 
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_path, 
