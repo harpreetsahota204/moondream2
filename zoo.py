@@ -66,10 +66,12 @@ class Moondream2(SamplesMixin, Model):
             raise ValueError("model_path is required")
             
         self.model_path = model_path
+        self.quantized=quantized
         self._operation = None
         self._prompt = prompt
         self.params = {}
         self._fields = {}
+        
         
         # Set operation if provided
         if operation:
