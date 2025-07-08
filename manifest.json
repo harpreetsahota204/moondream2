@@ -18,7 +18,7 @@
             ],
             "date_added": "2025-03-28",
             "requirements": {
-                "packages": ["huggingface-hub","transformers", "torch", "torchvision", "einops"],
+                "packages": ["huggingface-hub","transformers", "torch", "torchvision", "einops", "bitsandbytes"],
                 "cpu": {
                     "support": true
                 },

@@ -12,7 +12,8 @@ from PIL import Image
 
 from fiftyone import Model, SamplesMixin
 from fiftyone.core.labels import Detection, Detections, Keypoint, Keypoints, Classification, Classifications
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers.utils.import_utils import is_flash_attn_2_available
 
 MOONDREAM_OPERATIONS = {
     "caption": {
@@ -58,6 +59,7 @@ class Moondream2(SamplesMixin, Model):
         model_path: str,
         operation: str = None,
         prompt: str = None,
+        quantized: bool = None,
         **kwargs
     ):
         if not model_path:
@@ -91,7 +93,9 @@ class Moondream2(SamplesMixin, Model):
         print("rather than in your downloaded model directory.")
         print("Creating symbolic links to connect these locations...")
         print("="*80 + "\n")
+
         cache_dir = os.path.expanduser("~/.cache/huggingface/modules/transformers_modules/moondream2")
+
         os.makedirs(cache_dir, exist_ok=True)
         # Find all Python files in the model directory and create symlinks
         for file in os.listdir(model_path):
@@ -103,15 +107,38 @@ class Moondream2(SamplesMixin, Model):
                     print(f"Creating symlink for {file}")
                     os.symlink(src, dst)
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path, 
-            revision=kwargs.get("revision"),
-            trust_remote_code=True,
-            local_files_only=True,
-            device_map=self.device
-        )
+        model_kwargs = {
+            "device_map": self.device,
+        }
 
-        self.model.eval()
+        # Set optimizations based on CUDA device capabilities
+        if self.device == "cuda" and torch.cuda.is_available():
+            capability = torch.cuda.get_device_capability(self.device)
+            
+            # Enable flash attention if available
+            if is_flash_attn_2_available():
+                model_kwargs["attn_implementation"] = "flash_attention_2"
+            
+            # Enable bfloat16 on Ampere+ GPUs (compute capability 8.0+) 
+            # or apply it anyway if quantized is not enabled
+            if capability[0] >= 8 or self.quantized is not True:
+                model_kwargs["torch_dtype"] = torch.bfloat16
+            
+            # Apply quantization only on CUDA devices if requested
+            if self.quantized:
+                model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+        elif self.quantized:
+            logger.warning("Quantization is only supported on CUDA devices. Ignoring quantization request.")
+
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path, 
+                revision=kwargs.get("revision"),
+                trust_remote_code=True,
+                local_files_only=True,
+                **model_kwargs
+            )
+
+            self.model.eval()
 
     @property
     def media_type(self):
