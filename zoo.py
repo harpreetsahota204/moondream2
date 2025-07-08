@@ -129,8 +129,8 @@ class Moondream2(SamplesMixin, Model):
             # Apply quantization only on CUDA devices if requested
             if self.quantized:
                 model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
-        elif self.quantized:
-            logger.warning("Quantization is only supported on CUDA devices. Ignoring quantization request.")
+            elif self.quantized:
+                logger.warning("Quantization is only supported on CUDA devices. Ignoring quantization request.")
 
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_path, 
