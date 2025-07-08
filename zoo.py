@@ -109,36 +109,39 @@ class Moondream2(SamplesMixin, Model):
                     print(f"Creating symlink for {file}")
                     os.symlink(src, dst)
 
-            model_kwargs = {
-                "device_map": self.device,
-                "torch_dtype": torch.float32,  # Default to full precision
-            }
+        model_kwargs = {
+            "device_map": self.device,
+            "torch_dtype": torch.float32,  # Default to full precision
+        }
 
-            # Set optimizations based on CUDA device capabilities
-            if self.device == "cuda" and torch.cuda.is_available():
-                capability = torch.cuda.get_device_capability(self.device)
-                
-                # Enable flash attention if available
-                if is_flash_attn_2_available():
-                    model_kwargs["attn_implementation"] = "flash_attention_2"
-                
-                # Only apply quantization if device is CUDA
-                if self.quantized:
-                    model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
-                # If not quantized, use bfloat16 on Ampere+ GPUs
-                elif capability[0] >= 8:
-                    model_kwargs["torch_dtype"] = torch.bfloat16
+        # Set optimizations based on CUDA device capabilities
+        if self.device == "cuda" and torch.cuda.is_available():
+            capability = torch.cuda.get_device_capability(self.device)
+            
+            # Enable flash attention if available
+            if is_flash_attn_2_available():
+                model_kwargs["attn_implementation"] = "flash_attention_2"
+            
+            # On CUDA devices, we can use both 8-bit quantization for storage
+            # and bfloat16 for compute on Ampere+ GPUs
+            if self.quantized:
+                model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+            
+            # Set bfloat16 compute dtype on capable GPUs (regardless of quantization)
+            if capability[0] >= 8:
+                model_kwargs["torch_dtype"] = torch.bfloat16
+        elif self.quantized:
             logger.warning("Quantization is only supported on CUDA devices. Ignoring quantization request.")
+        
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_path, 
+            revision=kwargs.get("revision"),
+            trust_remote_code=True,
+            local_files_only=True,
+            **model_kwargs
+        )
 
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, 
-                revision=kwargs.get("revision"),
-                trust_remote_code=True,
-                local_files_only=True,
-                **model_kwargs
-            )
-
-            self.model.eval()
+        self.model.eval()
 
     @property
     def media_type(self):
