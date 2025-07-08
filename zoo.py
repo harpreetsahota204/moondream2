@@ -146,7 +146,6 @@ class Moondream2(SamplesMixin, Model):
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path, 
             revision=kwargs.get("revision"),
-            trust_remote_code=True,
             local_files_only=True,
             **model_kwargs
         )
