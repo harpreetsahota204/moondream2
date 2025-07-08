@@ -111,7 +111,6 @@ class Moondream2(SamplesMixin, Model):
 
         model_kwargs = {
             "device_map": self.device,
-            "torch_dtype": torch.float32,  # Default to full precision
         }
 
         # Set optimizations based on CUDA device capabilities
